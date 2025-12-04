@@ -15,6 +15,8 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
+    resume_path = Column(String, nullable=True)
+
 
 def init_db():
     Base.metadata.create_all(bind=engine)
