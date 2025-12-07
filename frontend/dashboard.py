@@ -1,121 +1,142 @@
-# frontend/dashboard.py
 import streamlit as st
-import os, json
+from pathlib import Path
 from datetime import datetime
+from utils.database import update_user_resume_path
 
-st.set_page_config(page_title="Dashboard", layout="wide")
 
-# ---------- styling (same-ish gradient) ----------
-st.markdown(
-    """
-    <style>
-    .stApp {
-      background: linear-gradient(135deg, #B5C7F2 0%, #E8D3FF 100%) !important;
-      min-height: 100vh !important;
-      padding-top: 28px;
-    }
-    .dash-card {
-      max-width: 900px;
-      margin: 18px auto;
-      padding: 26px;
-      background: rgba(255,255,255,0.94);
-      border-radius: 14px;
-      box-shadow: 0 14px 36px rgba(0,0,0,0.10);
-      border: 1px solid rgba(0,0,0,0.03);
-    }
-    .profile-box { padding: 14px; border-radius: 10px; background: #fbfbff; }
-    .small { color:#555; font-size:13px; }
-    .user-item { padding:10px; border-bottom: 1px solid rgba(0,0,0,0.04); }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+# ------------------------------
+# CUSTOM CSS FOR DASHBOARD UI
+# ------------------------------
+def load_css():
+    st.markdown(
+        """
+        <style>
+        .dashboard-container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0px 4px 20px rgba(0,0,0,0.08);
+            width: 70%;
+            margin: auto;
+            margin-top: 40px;
+        }
 
-# ---------- helper: load users (optional list display) ----------
-USERS_FILE = os.path.join(os.path.dirname(__file__), "users.json")
-def load_users():
-    if not os.path.exists(USERS_FILE):
-        return []
-    try:
-        with open(USERS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return []
+        .welcome-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 10px;
+        }
 
-# ---------- session / auth check ----------
-user = st.session_state.get("user", None)
+        .welcome-subtitle {
+            font-size: 16px;
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+        }
 
-if not user:
-    # not logged-in view
-    st.markdown("<div class='dash-card'>", unsafe_allow_html=True)
-    st.title("Dashboard")
-    st.markdown("## You are not signed in")
-    st.markdown("This dashboard requires you to sign in first.")
-    st.markdown("- To sign in, run the login page: streamlit run frontend/login.py")
-    st.markdown("- Or open the registration page to create an account: streamlit run frontend/registration.py")
-    st.markdown("")
-    if st.button("Open login page (instructions)"):
-        st.info("Open a terminal and run: streamlit run frontend/login.py — then sign in. After sign-in you'll return here.")
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.stop()
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-top: 30px;
+            margin-bottom: 10px;
+            color: #34495e;
+        }
 
-# ---------- logged-in view ----------
-st.markdown("<div class='dash-card'>", unsafe_allow_html=True)
+        .hint-text {
+            font-size: 13px;
+            color: #7f8c8d;
+            margin-bottom: 10px;
+        }
 
-# Header row: welcome + quick actions
-col1, col2 = st.columns([3,1])
-with col1:
-    st.title(f"Welcome, {user.get('full_name','User').split()[0]} 👋")
-    st.markdown(f"<div class='small'>Signed in as: <strong>{user.get('email')}</strong></div>", unsafe_allow_html=True)
-with col2:
-    if st.button("Log out"):
-        st.session_state["user"] = None
-        st.experimental_rerun()
+        .logout-container {
+            text-align: center;
+            margin-top: 30px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
-st.divider()
 
-# Profile / details
-st.subheader("Your profile")
-st.markdown("<div class='profile-box'>", unsafe_allow_html=True)
-st.markdown(f"*Full name:* {user.get('full_name')}")
-st.markdown(f"*Email:* {user.get('email')}")
-created = user.get("created_at", None)
-if created:
-    st.markdown(f"*Account created:* {created}")
-st.markdown("</div>", unsafe_allow_html=True)
+# ------------------------------
+# DASHBOARD PAGE UI + RESUME UPLOAD
+# ------------------------------
+def show_dashboard():
+    load_css()
 
-st.markdown("")
-st.subheader("Quick actions")
-colA, colB, colC = st.columns(3)
-with colA:
-    if st.button("Edit profile (demo)"):
-        st.info("Profile edit not implemented in this demo. We can add this next.")
-with colB:
-    if st.button("Change password (demo)"):
-        st.info("Password change not implemented in this demo. We can add it on request.")
-with colC:
-    if st.button("Show my data file"):
-        st.write(f"users.json location: {USERS_FILE}")
+    # Check if user is logged in
+    if "user" not in st.session_state or st.session_state["user"] is None:
+        st.warning("You must log in to access the dashboard.")
+        st.info("Use the sidebar to go to the Login page.")
+        return
 
-st.markdown("")
-st.divider()
+    user = st.session_state["user"]
 
-# Optional: show list of registered users (email masked) for demo/mentor view
-st.subheader("Registered users (demo view)")
-users = load_users()
-if not users:
-    st.info("No users found (users.json empty).")
-else:
-    # limited, sanitized display
-    for u in users:
-        # mask email for privacy a bit (show prefix first char, then ...)
-        email = u.get("email","")
-        if "@" in email:
-            prefix, domain = email.split("@",1)
-            masked = (prefix[0] + "" + prefix[-1]) if len(prefix)>2 else (prefix[0]+"")
-            masked = masked + "@" + domain
+    # Dashboard container
+    st.markdown('<div class="dashboard-container">', unsafe_allow_html=True)
+
+    # Welcome section
+    st.markdown(
+        f'<div class="welcome-title">Welcome, {user["full_name"]} 👋</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="welcome-subtitle">Your personalized resume analysis dashboard is ready.</div>',
+        unsafe_allow_html=True
+    )
+
+    # ------------------ RESUME UPLOAD SECTION ------------------
+    st.markdown('<div class="section-title">📄 Upload Your Resume</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="hint-text">Allowed formats: PDF, DOCX • Max size: 5 MB</div>',
+        unsafe_allow_html=True
+    )
+
+    uploaded_file = st.file_uploader("Choose your resume file", type=["pdf", "docx"])
+
+    if uploaded_file is not None:
+        # Size validation (5 MB)
+        max_size = 5 * 1024 * 1024  # 5 MB
+        if uploaded_file.size > max_size:
+            st.error("File is too large. Maximum allowed size is 5 MB.")
         else:
-            masked = email
-        st.markdown(f"<div class='user-item'><strong>{u.get('full_name','-')}</strong> — <span class='small'>{masked}</span></div>", unsafe_allow_html=True)
+            # Build a unique filename
+            resumes_dir = Path("data/resumes")
+            resumes_dir.mkdir(parents=True, exist_ok=True)
 
-st.markdown("</div>", unsafe_allow_html=True)
+            extension = uploaded_file.name.split(".")[-1].lower()
+            timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+            filename = f"user_{user['id']}_{timestamp}.{extension}"
+
+            save_path = resumes_dir / filename
+
+            # Save file to disk
+            with open(save_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+
+            # Update database with resume path
+            update_user_resume_path(user["id"], str(save_path))
+
+            st.success("Resume uploaded successfully!")
+            st.info(f"Saved as: {save_path}")
+
+    # ------------------ PLACEHOLDER SECTIONS ------------------
+    st.markdown('<div class="section-title">📝 Resume Analysis</div>', unsafe_allow_html=True)
+    st.write("Resume analysis features will be added in the next milestone.")
+
+    st.markdown('<div class="section-title">💼 Job Recommendations</div>', unsafe_allow_html=True)
+    st.write("Job recommendation features will be added in a later milestone.")
+
+    # Logout
+    st.markdown('<div class="logout-container">', unsafe_allow_html=True)
+
+    if st.button("Logout"):
+        st.session_state["user"] = None
+        st.session_state["page"] = "login"
+        st.success("Logged out successfully!")
+
+    st.markdown("</div>", unsafe_allow_html=True)  # logout container
+    st.markdown("</div>", unsafe_allow_html=True)  # dashboard container

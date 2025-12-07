@@ -1,76 +1,91 @@
-# frontend/registration.py
-import re
 import streamlit as st
+from backend.auth import register_user
 
-st.set_page_config(page_title="Create Account", page_icon="📝", layout="centered")
 
-# Simple CSS for card look + gradient header
-st.markdown(
-    """
-    <style>
-    .stApp { background: linear-gradient(to right, #00FF87, #60EFFF); }
-    .card { background: rgba(255,255,255,0.9); padding:18px; border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.06); }
-    .hint { color: #6b7280; font-size:13px; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+# ------------------------------
+# CUSTOM CSS FOR BEAUTIFUL UI
+# ------------------------------
+def load_css():
+    st.markdown(
+        """
+        <style>
+        .main-container {
+            background-color: #f5f7fa;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
+            width: 420px;
+            margin: auto;
+        }
 
-def valid_email(s: str) -> bool:
-    return bool(re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", s or ""))
+        .title {
+            font-size: 28px;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
 
-def password_issues(pw: str) -> list:
-    issues = []
-    if len(pw) < 8:
-        issues.append("At least 8 characters.")
-    if not re.search(r"[A-Z]", pw):
-        issues.append("At least one uppercase letter.")
-    if not re.search(r"\d", pw):
-        issues.append("At least one number.")
-    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", pw):
-        issues.append("At least one special character (e.g. !@#$%).")
-    return issues
+        .subtitle {
+            text-align: center;
+            font-size: 14px;
+            margin-bottom: 25px;
+            color: #7f8c8d;
+        }
 
-# Ensure registered_users exists in session_state (keeps runtime persistence)
-if "registered_users" not in st.session_state:
-    st.session_state["registered_users"] = {}
+        .rule-box {
+            background: #eef2f7;
+            padding: 10px;
+            font-size: 13px;
+            border-left: 4px solid #3498db;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
 
-st.markdown('<div class="card">', unsafe_allow_html=True)
-st.title("Create your account")
-st.markdown("<div class='hint'>Quick & secure sign-up — use a real email</div>", unsafe_allow_html=True)
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
-with st.form("reg_form"):
-    full_name = st.text_input("Full name")
-    email = st.text_input("Email")
-    password = st.text_input("Password", type="password", help="Min 8 chars, uppercase, number, special")
-    confirm = st.text_input("Confirm password", type="password")
-    submitted = st.form_submit_button("Create account")
 
-st.markdown("</div>", unsafe_allow_html=True)
+# ------------------------------
+# REGISTRATION PAGE UI
+# ------------------------------
+def show_registration_page():
+    load_css()
 
-if submitted:
-    errors = []
-    if not full_name.strip():
-        errors.append("Full name is required.")
-    if not valid_email(email):
-        errors.append("Please enter a valid email.")
-    pw_issues = password_issues(password)
-    if pw_issues:
-        errors += pw_issues
-    if password != confirm:
-        errors.append("Password and confirm password do not match.")
+    st.markdown('<div class="main-container">', unsafe_allow_html=True)
 
-    if errors:
-        for e in errors:
-            st.error(e)
-    else:
-        users = st.session_state["registered_users"]
-        if email in users:
-            st.error("An account with this email already exists. Try logging in or use a different email.")
+    st.markdown('<div class="title">Create Your Account</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitle">Fill the details below to register</div>', unsafe_allow_html=True)
+
+    # Display password rules
+    st.markdown(
+        """
+        <div class="rule-box">
+        <b>Password Rules:</b><br>
+        • Minimum 8 characters<br>
+        • At least 1 uppercase letter<br>
+        • At least 1 lowercase letter<br>
+        • At least 1 number<br>
+        • At least 1 special character (!@#$%^&*)<br>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    full_name = st.text_input("Full Name")
+    email = st.text_input("Email Address")
+    password = st.text_input("Password", type="password")
+    confirm_password = st.text_input("Confirm Password", type="password")
+
+    if st.button("Register"):
+        success, message = register_user(full_name, email, password, confirm_password)
+
+        if success:
+            st.success(message)
+            st.info("Go to the Login page from the sidebar.")
         else:
-            # Save user in session state (replace with DB/hashing later)
-            users[email] = {"full_name": full_name.strip(), "password": password}
-            st.success("Account created successfully! You can now go to Login and sign in.")
-            st.info("Saved to session_state (runtime only). Not persisted to disk or DB.")
-            # Optionally show quick preview
-            st.write("You registered:", {"email": email, "full_name": full_name})
+            st.error(message)
+
+    st.markdown("</div>", unsafe_allow_html=True)
