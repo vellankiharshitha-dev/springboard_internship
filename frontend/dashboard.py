@@ -1,142 +1,159 @@
 import streamlit as st
-from pathlib import Path
-from datetime import datetime
-from utils.database import update_user_resume_path
+from backend.resume_parser import extract_resume_text
+import os
+import datetime
 
 
-# ------------------------------
-# CUSTOM CSS FOR DASHBOARD UI
-# ------------------------------
-def load_css():
-    st.markdown(
-        """
-        <style>
-        .dashboard-container {
-            background-color: #ffffff;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0px 4px 20px rgba(0,0,0,0.08);
-            width: 70%;
-            margin: auto;
-            margin-top: 40px;
-        }
+def basic_resume_analysis(text):
+    """Handle both string and (text, extra) tuple safely."""
+    if isinstance(text, tuple):
+        text = text[0]
 
-        .welcome-title {
-            font-size: 32px;
-            font-weight: 700;
-            color: #2c3e50;
-            text-align: center;
-            margin-bottom: 10px;
-        }
+    if not text or not isinstance(text, str):
+        return {"word_count": 0, "skills": [], "clean_text": ""}
 
-        .welcome-subtitle {
-            font-size: 16px;
-            text-align: center;
-            color: #7f8c8d;
-            margin-bottom: 30px;
-        }
+    lower = text.lower()
+    words = text.split()
+    length = len(words)
 
-        .section-title {
-            font-size: 20px;
-            font-weight: 600;
-            margin-top: 30px;
-            margin-bottom: 10px;
-            color: #34495e;
-        }
+    skills = []
+    for skill in [
+        "python",
+        "java",
+        "c++",
+        "sql",
+        "html",
+        "css",
+        "javascript",
+        "react",
+        "django",
+        "flask",
+        "machine learning",
+        "data analysis",
+    ]:
+        if skill in lower:
+            skills.append(skill)
 
-        .hint-text {
-            font-size: 13px;
-            color: #7f8c8d;
-            margin-bottom: 10px;
-        }
-
-        .logout-container {
-            text-align: center;
-            margin-top: 30px;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+    return {"word_count": length, "skills": skills, "clean_text": text}
 
 
-# ------------------------------
-# DASHBOARD PAGE UI + RESUME UPLOAD
-# ------------------------------
+def get_job_recommendations(analysis: dict):
+    skills = set(analysis.get("skills", []))
+    jobs = []
+
+    if {"python", "sql"} & skills:
+        jobs.append(
+            {
+                "title": "Junior Data Analyst",
+                "meta": "Entry-level · Remote / Hybrid",
+                "tags": "Python · SQL · Excel",
+            }
+        )
+
+    if {"html", "css", "javascript"} <= skills:
+        jobs.append(
+            {
+                "title": "Frontend Developer Intern",
+                "meta": "Internship · Web Development",
+                "tags": "HTML · CSS · JavaScript",
+            }
+        )
+
+    if {"python", "django"} & skills:
+        jobs.append(
+            {
+                "title": "Python / Django Developer Intern",
+                "meta": "Internship · Backend",
+                "tags": "Python · Django · REST APIs",
+            }
+        )
+
+    if not jobs:
+        jobs.append(
+            {
+                "title": "Software Developer Intern",
+                "meta": "Internship · Generalist",
+                "tags": "Problem Solving · OOP · Git",
+            }
+        )
+
+    return jobs
+
+
 def show_dashboard():
-    load_css()
+    # ------------ TOP ROW: TITLE + LOGOUT BUTTON ------------
+    title_col, logout_col = st.columns([7, 1])
 
-    # Check if user is logged in
-    if "user" not in st.session_state or st.session_state["user"] is None:
-        st.warning("You must log in to access the dashboard.")
-        st.info("Use the sidebar to go to the Login page.")
+    with title_col:
+        st.markdown("### WELCOME 👋 TO RESUME ANALYSER! ")
+        st.markdown(
+            "Upload your resume below to see quick analysis and sample job recommendations."
+        )
+
+    with logout_col:
+        if st.button("Logout"):
+            # remove logged-in user and send back to login page
+            st.session_state["user"] = None
+            st.session_state["page"] = "login"
+            st.rerun()
+    # --------------------------------------------------------
+
+    st.markdown("#### Step 1 · Upload Resume")
+    uploaded_file = st.file_uploader("Choose a resume file", type=["pdf", "docx"])
+
+    if not uploaded_file:
+        st.info("Upload a resume to view analysis and job suggestions.")
         return
 
-    user = st.session_state["user"]
+    # Save resume
+    save_dir = "data/resumes"
+    os.makedirs(save_dir, exist_ok=True)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"user_resume_{timestamp}.pdf"
+    file_path = os.path.join(save_dir, filename)
 
-    # Dashboard container
-    st.markdown('<div class="dashboard-container">', unsafe_allow_html=True)
+    with open(file_path, "wb") as f:
+        f.write(uploaded_file.read())
 
-    # Welcome section
-    st.markdown(
-        f'<div class="welcome-title">Welcome, {user["full_name"]} 👋</div>',
-        unsafe_allow_html=True
-    )
+    st.success("Resume uploaded successfully.")
+    st.write(f"Saved as: {file_path}")
 
-    st.markdown(
-        '<div class="welcome-subtitle">Your personalized resume analysis dashboard is ready.</div>',
-        unsafe_allow_html=True
-    )
+    # Extract + analyse
+    raw_extracted = extract_resume_text(file_path)
+    analysis = basic_resume_analysis(raw_extracted)
+    text = analysis["clean_text"]
 
-    # ------------------ RESUME UPLOAD SECTION ------------------
-    st.markdown('<div class="section-title">📄 Upload Your Resume</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="hint-text">Allowed formats: PDF, DOCX • Max size: 5 MB</div>',
-        unsafe_allow_html=True
-    )
+    if not text:
+        st.warning(
+            "Could not extract text from this resume. "
+            "Analysis and job suggestions are skipped for this file."
+        )
+        return
 
-    uploaded_file = st.file_uploader("Choose your resume file", type=["pdf", "docx"])
+    st.markdown("---")
+    st.markdown("#### Step 2 · Quick Analysis")
 
-    if uploaded_file is not None:
-        # Size validation (5 MB)
-        max_size = 5 * 1024 * 1024  # 5 MB
-        if uploaded_file.size > max_size:
-            st.error("File is too large. Maximum allowed size is 5 MB.")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("Approx. word count:", analysis.get("word_count", 0))
+    with col2:
+        skills = analysis.get("skills", [])
+        if skills:
+            st.write("Skills detected:", ", ".join(skills))
         else:
-            # Build a unique filename
-            resumes_dir = Path("data/resumes")
-            resumes_dir.mkdir(parents=True, exist_ok=True)
+            st.write("Skills detected: None found from common keywords.")
 
-            extension = uploaded_file.name.split(".")[-1].lower()
-            timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-            filename = f"user_{user['id']}_{timestamp}.{extension}"
+    with st.expander("View extracted resume text"):
+        st.text_area("Resume Content", text, height=220)
 
-            save_path = resumes_dir / filename
+    st.markdown("---")
+    st.markdown("#### Step 3 · Job Recommendations")
 
-            # Save file to disk
-            with open(save_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
+    st.caption("Sample roles based on the skills found in your resume text.")
 
-            # Update database with resume path
-            update_user_resume_path(user["id"], str(save_path))
-
-            st.success("Resume uploaded successfully!")
-            st.info(f"Saved as: {save_path}")
-
-    # ------------------ PLACEHOLDER SECTIONS ------------------
-    st.markdown('<div class="section-title">📝 Resume Analysis</div>', unsafe_allow_html=True)
-    st.write("Resume analysis features will be added in the next milestone.")
-
-    st.markdown('<div class="section-title">💼 Job Recommendations</div>', unsafe_allow_html=True)
-    st.write("Job recommendation features will be added in a later milestone.")
-
-    # Logout
-    st.markdown('<div class="logout-container">', unsafe_allow_html=True)
-
-    if st.button("Logout"):
-        st.session_state["user"] = None
-        st.session_state["page"] = "login"
-        st.success("Logged out successfully!")
-
-    st.markdown("</div>", unsafe_allow_html=True)  # logout container
-    st.markdown("</div>", unsafe_allow_html=True)  # dashboard container
+    jobs = get_job_recommendations(analysis)
+    for job in jobs:
+        st.write(f"{job['title']}")
+        st.write(f"{job['meta']}")
+        st.write(f"Skills: {job['tags']}")
+        st.markdown("---")

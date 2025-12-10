@@ -20,3 +20,7 @@ data/app.db
 # OS files
 Thumbs.db
 .DS_Store
+
+# Uploaded resumes (do NOT track PDFs)
+data/resumes/
+data/resumes/*

@@ -2,19 +2,15 @@ import re
 import bcrypt
 from utils.database import create_user, get_user_by_email
 
-
-# ------------------------------
 # EMAIL VALIDATION
-# ------------------------------
+
 def validate_email(email: str) -> bool:
     """Validate basic email format."""
     pattern = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
     return re.match(pattern, email) is not None
 
+# PASSWORD VALIDATION 
 
-# ------------------------------
-# PASSWORD VALIDATION RULES
-# ------------------------------
 def validate_password(password: str) -> tuple[bool, str]:
     """
     Password must follow rules:
@@ -41,10 +37,8 @@ def validate_password(password: str) -> tuple[bool, str]:
 
     return True, ""
 
+# USER REGISTRATION 
 
-# ------------------------------
-# USER REGISTRATION LOGIC
-# ------------------------------
 def register_user(full_name: str, email: str, password: str, confirm_password: str):
     """
     Handles user registration.
@@ -86,10 +80,8 @@ def register_user(full_name: str, email: str, password: str, confirm_password: s
         print("Error in register_user:", e)
         return False, "Something went wrong while creating the user."
 
-
-# ------------------------------
 # USER LOGIN LOGIC
-# ------------------------------
+
 def login_user(email: str, password: str):
     """
     Handles user login.
