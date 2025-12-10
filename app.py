@@ -1,101 +1,85 @@
-#app.py
 import streamlit as st
-from utils.database import init_db
 from frontend.registration import show_registration_page
 from frontend.login import show_login_page
 from frontend.dashboard import show_dashboard
 
 
-def add_global_css():
-    st.markdown(
-        """
-        <style>
-        /* Background image */
-        .stApp {
-            background-image: url("https://images.unsplash.com/photo-1501785888041-af3ef285b470");
-            background-size: cover;
-            background-position: center;
-            background-attachment: fixed;
-        }
-
-        .block-container {
-            max-width: 900px;
-            margin: 80px auto 40px auto !important; 
-            background: rgba(255,255,255,0.97);
-            border-radius: 24px;
-            box-shadow: 0 18px 40px rgba(15,23,42,0.35);
-            padding: 32px 32px 36px 32px;
-        }
-
-        /* Sidebar */
-        section[data-testid="stSidebar"] {
-            background-color: #111827;
-        }
-        section[data-testid="stSidebar"] h1 {
-            color: #fbbf24;
-        }
-        section[data-testid="stSidebar"] label,
-        section[data-testid="stSidebar"] span {
-            color: #e5e7eb;
-        }
-        section[data-testid="stSidebar"] .stButton>button {
-            width: 100%;
-            margin-bottom: 8px;
-            border-radius: 999px;
-            padding: 0.45rem 1rem;
-            border: none;
-            background: #2563eb;
-            color: #ffffff;
-            font-weight: 600;
-        }
-        section[data-testid="stSidebar"] .stButton>button:hover {
-            background: #1d4ed8;
-        }
-
-        .stButton>button {
-            border-radius: 999px;
-            padding: 0.45rem 1.2rem;
-            border: none;
-            background: #2563eb;
-            color: #ffffff;
-            font-weight: 600;
-        }
-        .stButton>button:hover {
-            background: #1d4ed8;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+DASHBOARD_SECTIONS = [
+    "Overview",
+    "Upload Resume",
+    "Quick Analysis",
+    "Job Recommendations",
+]
 
 
-def main():
-    st.set_page_config(
-        page_title="Resume App",
-        page_icon="📄",
-        layout="centered",
-    )
-
-    add_global_css()
-    init_db()
-
-    # Init session
+def init_session_state():
     if "page" not in st.session_state:
         st.session_state["page"] = "register"
     if "user" not in st.session_state:
         st.session_state["user"] = None
+    if "dashboard_section" not in st.session_state:
+        st.session_state["dashboard_section"] = "Overview"
 
-    # Sidebar navigation
+
+def sidebar_navigation():
     with st.sidebar:
         st.title("Navigation")
-        if st.button("Register"):
+
+        if st.button("Register", key="nav_register"):
             st.session_state["page"] = "register"
-        if st.button("Login"):
+
+        if st.button("Login", key="nav_login"):
             st.session_state["page"] = "login"
-        if st.button("Dashboard"):
+
+        if st.button("Dashboard", key="nav_dashboard"):
             st.session_state["page"] = "dashboard"
 
-    page = st.session_state["page"]
+        st.markdown("---")
+
+        if (
+            st.session_state.get("user") is not None
+            and st.session_state.get("page") == "dashboard"
+        ):
+            st.caption("Dashboard Sections")
+
+            current = st.session_state.get("dashboard_section", "Overview")
+            try:
+                idx = DASHBOARD_SECTIONS.index(current)
+            except ValueError:
+                idx = 0
+
+            selected = st.radio(
+                "Dashboard Sections",
+                DASHBOARD_SECTIONS,
+                index=idx,
+                label_visibility="collapsed",
+                key="dashboard_sections_sidebar",
+            )
+
+            st.session_state["dashboard_section"] = selected
+
+        st.markdown("---")
+
+        if st.session_state.get("user"):
+            if st.button("Logout", key="nav_logout"):
+                st.session_state["user"] = None
+                st.session_state["page"] = "login"
+                st.experimental_rerun()
+        else:
+            st.caption("Not signed in")
+
+        st.markdown("---")
+        st.caption("Use the navigation buttons above to move between pages.")
+
+
+def main():
+
+    st.set_page_config(page_title="Resume App", layout="wide")
+    init_session_state()
+
+    sidebar_navigation()
+
+    page = st.session_state.get("page", "register")
 
     if page == "register":
         show_registration_page()
@@ -106,9 +90,13 @@ def main():
     elif page == "dashboard":
         if st.session_state.get("user") is None:
             st.warning("You must log in to access the dashboard.")
-            st.info("Please use the *Login* option in the sidebar.")
+            st.info("Please use the Login option in the sidebar.")
         else:
             show_dashboard()
+
+    else:
+        st.session_state["page"] = "register"
+        st.experimental_rerun()
 
 
 if __name__ == "__main__":

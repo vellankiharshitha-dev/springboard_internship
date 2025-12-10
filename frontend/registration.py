@@ -48,11 +48,23 @@ def load_css():
 
 
 def show_registration_page():
+    st.markdown(
+        """
+        <style>
+        .stApp {
+        background: #EEAECA;
+        background: radial-gradient(circle, rgba(238, 174, 202, 1) 0%, rgba(148, 187, 233, 1) 100%);
+        background-attachment: fixed;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     load_css()
 
     st.markdown('<div class="reg-container">', unsafe_allow_html=True)
 
-    # Header
     st.markdown(
         """
         <div class="reg-header">
@@ -68,7 +80,6 @@ def show_registration_page():
     password = st.text_input("Password", type="password")
     confirm_password = st.text_input("Confirm Password", type="password")
 
-    # Password rules 
     st.markdown(
         """
         <div class="pw-box">
@@ -82,7 +93,7 @@ def show_registration_page():
         unsafe_allow_html=True,
     )
 
-    if st.button("Register"):
+    if st.button("Register" ,key="register_form_submiit"):
         success, message = register_user(full_name, email, password, confirm_password)
         if success:
             st.success(message)
